@@ -1,17 +1,19 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain: ipc } = require( 'electron' )
 const fs = require( 'fs' )
+const path = require( 'path' )
+const { windowManager } = require( "node-window-manager" );
+const { loadTimers, saveTimers } = require( "./storage" );
+const { timerControl } = require( "./timer" );
+const config = require( "./config" );
+const { STORAGE_FILE, TIMERS_LOAD_SUCCESS, TIMERS_LOAD_ERROR } = require( "./constants" );
 
-let mainWindow = null
-let tray = null
+const storagePath = path.join( app.getPath( 'appData' ), STORAGE_FILE )
 
-let currentTimerIndex = -1
-let interval
-let start
 
-const timers = []
 
 function createWindow () {
-	mainWindow = new BrowserWindow( {
+
+	const mainWindow = new BrowserWindow( {
 		width: 800,
 		height: 600,
 		webPreferences: {
@@ -21,196 +23,187 @@ function createWindow () {
 
 	mainWindow.loadFile( 'index.html' )
 
+	if ( config.showDevTools ) mainWindow.webContents.openDevTools()
+
+	return mainWindow
+
+
+}
+
+function createTray () {
+
+	const tray = new Tray( 'icon.jpg' )
+	tray.setToolTip( 'Task Timer' )
+
+	return tray
+
+}
+
+app.whenReady().then( () => {
+
+	// Load timers from storage file
+	let timers = []
+	let failedTimersLoad = false
+	try {
+		timers = loadTimers( storagePath )
+	} catch ( error ) {
+		console.error( error )
+		failedTimersLoad = true
+	}
+
+
+	// Create UI
+	const mainWindow = createWindow()
+	const tray = createTray()
+
+	// Initialze timers logic
+	timerControl.init( timers, ( event, data ) => {
+		sendWindowEvent( event, data, mainWindow )
+		updateTrayMenu( data.timers, tray, mainWindow )
+	} )
+
+
+	// Update Tray UI
+	updateTrayMenu( timers, tray, mainWindow )
+
+
+	// Register Window listeners
+
 	mainWindow.on( 'minimize', e => {
 		e.preventDefault();
 		mainWindow.hide();
 	} )
 
-}
-
-app.whenReady().then( () => {
-	createWindow()
-
-	const loadedTimers = loadJSON()
-	if ( loadedTimers ) {
-		timers.splice( 0, timers.length )
-		loadedTimers.forEach( timer => {
-			timers.push( {
-				title: timer.title,
-				time: timer.time,
-				isPaused: true,
-			} )
-		} );
-	}
+	mainWindow.on( 'close', () => {
+		if ( timerControl.getActiveTimer() ) timerControl.stop()
+		saveTimers( timers, storagePath )
+	} )
 
 	mainWindow.webContents.on( 'did-finish-load', () => {
-		mainWindow.webContents.send( 'loadTimers', timers )
-	} )
-
-	// mainWindow.webContents.openDevTools()
-
-
-	tray = new Tray( 'icon.jpg' )
-
-	tray.setToolTip( 'Timer' )
-	updateTrayMenu()
-
-
-	ipc.handle( 'delete', ( event, index ) => {
-		if ( currentTimerIndex === index ) return false
-		timers.splice( index, 1 )
-		return true
-	} )
-
-	ipc.handle( 'rename', ( event, index, name ) => {
-		timers[ index ].title = name
-		updateTrayMenu()
-		return true
-	} )
-
-	ipc.on( 'create', ( event, newName ) => {
-		timers.push( {
-			title: newName,
-			time: 0,
-			isPaused: false,
-		} )
-		mainWindow.webContents.send( 'loadTimers', timers )
+		console.log( 'finished load', new Date() )
+		sendWindowEvent(
+			failedTimersLoad ? TIMERS_LOAD_ERROR : TIMERS_LOAD_SUCCESS,
+			{ timers },
+			mainWindow
+		)
 	} )
 
 
-	mainWindow.on( 'close', () => {
-		clearInterval( interval )
-		saveJSON()
-	} )
-
-
-
+	// Misc. app events
 	app.on( 'activate', function () {
 		if ( BrowserWindow.getAllWindows().length === 0 ) createWindow()
 	} )
 
-} )
-
-
-app.on( 'window-all-closed', function () {
-	if ( process.platform !== 'darwin' ) app.quit()
-} )
-
-
-function startTimer ( timerIndex ) {
-	if ( timers[ timerIndex ].isPaused ) {
-		start = Date.now() - timers[ timerIndex ].time
-	} else {
-		start = Date.now()
-	}
-	currentTimerIndex = timerIndex
-	interval = setInterval( () => {
-		timers[ timerIndex ].time = Date.now() - start
-		mainWindow.webContents.send( 'timerUpdate' + timerIndex, timers[ timerIndex ].time )
-		updateTrayMenu()
-	}, 1000 )
-}
-
-function pauseTimer ( timerIndex ) {
-	clearInterval( interval )
-	timers[ timerIndex ].isPaused = true
-}
-
-function stopTimer ( timerIndex ) {
-	clearInterval( interval )
-	timers[ timerIndex ].time = 0
-	start = null
-	timers[ timerIndex ].isPaused = false
-	mainWindow.webContents.send( 'timerUpdate' + timerIndex, timers[ timerIndex ].time )
-	currentTimerIndex = -1
-	updateTrayMenu()
-}
-
-
-
-function updateTrayMenu () {
-
-	const menuItems = []
-
-	menuItems.push( {
-		label: currentTimerIndex === -1 || timers[ currentTimerIndex ].isPaused ? "No timer running" : timers[ currentTimerIndex ].title,
-		enabled: false
+	app.on( 'window-all-closed', function () {
+		if ( process.platform !== 'darwin' ) app.quit()
 	} )
 
 
+
+	// ipc.handle( 'delete', ( event, index ) => {
+	// 	if ( currentTimerIndex === index ) return false
+	// 	timers.splice( index, 1 )
+	// 	return true
+	// } )
+
+	// ipc.handle( 'rename', ( event, index, name ) => {
+	// 	timers[ index ].title = name
+	// 	updateTrayMenu()
+	// 	return true
+	// } )
+
+	// ipc.on( 'create', ( event, newName ) => {
+	// 	timers.push( {
+	// 		title: newName,
+	// 		time: 0,
+	// 		isPaused: false,
+	// 	} )
+	// 	mainWindow.webContents.send( 'loadTimers', timers )
+	// } )
+
+
+
+} )
+
+
+
+
+function sendWindowEvent ( event, data, mainWindow ) {
+	mainWindow.webContents.send( event, data )
+}
+
+
+function updateTrayMenu ( timers, tray, mainWindow ) {
+
+	const menuItems = []
+
+	const activeTimer = timerControl.getActiveTimer()
+
+	// Current status
+	menuItems.push( {
+		label: activeTimer ? activeTimer.title : "No timer running ",
+		enabled: false
+	} )
+
+	// Separator
 	menuItems.push( {
 		type: 'separator',
 	} )
 
-
-
+	// List of available timers
 	timers.forEach( ( timer, index ) => {
 		menuItems.push( {
 			label: 'Start ' + timer.title,
+			enabled: !activeTimer || !activeTimer.isPaused,
 			click: () => {
-				timers.forEach( ( otherTimer, otherIndex ) => {
-					if ( otherTimer !== timer ) {
-						pauseTimer( otherIndex )
-					}
-				} )
-				startTimer( index )
+				timerControl.start( index )
 			}
 		} )
 	} )
 
+	// Separator
 	menuItems.push( {
-		label: 'Clear All', click: () => {
-			if ( currentTimerIndex !== -1 ) {
-				timers.forEach( ( timer, index ) => {
-					stopTimer( index )
-				} )
-				currentTimerIndex = -1
-				updateTrayMenu()
-				saveJSON()
-			}
+		type: 'separator',
+	} )
+
+	// Pause
+	menuItems.push( {
+		label: 'Pause',
+		enabled: !!activeTimer,
+		click: () => {
+			timerControl.pause()
+			saveTimers( timers, storagePath )
 		}
 	} )
 
-
+	// Stop
 	menuItems.push( {
-		label: 'Pause', click: () => {
-			if ( currentTimerIndex !== -1 ) {
-				pauseTimer( currentTimerIndex )
-				saveJSON()
-			}
+		label: 'Stop',
+		enabled: !!activeTimer,
+		click: () => {
+			timerControl.stop()
+			saveTimers( timers, storagePath )
 		}
 	} )
 
-
+	// Separator
 	menuItems.push( {
-		label: 'Open App', click: () => mainWindow.show()
+		type: 'separator',
 	} )
 
+	// Open app window
+	menuItems.push( {
+		label: 'Open Task Timer',
+		click: () => {
+			mainWindow.show()
+		}
+	} )
 
 	tray.setContextMenu( Menu.buildFromTemplate( menuItems ) )
-
-}
-
-function saveJSON () {
-
-	const data = JSON.stringify( timers.map( timer => ( {
-		title: timer.title, time: timer.time
-	} ) ) )
-
-	fs.writeFile( 'storage.json', data, err => { } )
-
 }
 
 
-function loadJSON () {
 
-	try {
-		const json = fs.readFileSync( 'storage.json', { encoding: 'utf8' } )
-		return JSON.parse( json )
-	} catch ( error ) {
-		console.error( error )
-		return null
-	}
-
-}
-
+// windowManager.on( 'window-activated', ( window ) => {
+	// 	console.log( "Changed to", window.getTitle() )
+	// } )

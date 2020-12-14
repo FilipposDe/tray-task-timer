@@ -4,22 +4,33 @@
 	<head>
 		<meta charset="UTF-8">
 		<!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-		<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'">
+		<!-- <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'"> -->
 		<meta http-equiv="X-Content-Security-Policy" content="default-src 'self'; script-src 'self'">
-		<title>Hello World!</title>
+		<title>Task Timer</title>
 		<link rel="stylesheet" href="style.css">
 
 	</head>
 
 	<body>
 
-		<header>
-			<h1>Timer</h1>
-			<input type="text" placeholder="New Timer" id="new-timer">
-			<button id="add-btn">OK</button>
-		</header>
+		<div id="app">
+			<header>
+				<h1>Timer</h1>
+				<input type="text" placeholder="New Timer" id="new-timer">
+				<button id="add-btn">OK</button>
+			</header>
+
+			<main>
+
+				<ol>
+					<li v-for='timer in timers'>{{timer.title}}</li>
+				</ol>
+			</main>
+		</div>
 
 
+
+		<script src="./vue.js"></script>
 		<script src="./renderer.js"></script>
 	</body>
 
