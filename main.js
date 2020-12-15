@@ -5,7 +5,7 @@ const { windowManager } = require( "node-window-manager" );
 const { loadTimers, saveTimers } = require( "./storage" );
 const { timerControl } = require( "./timer" );
 const config = require( "./config" );
-const { STORAGE_FILE, TIMERS_LOAD_SUCCESS, TIMERS_LOAD_ERROR } = require( "./constants" );
+const { STORAGE_FILE, TIMERS_LOAD_SUCCESS, TIMERS_LOAD_ERROR, REQUEST_TIMER_START, REQUEST_TIMER_PAUSE, REQUEST_TIMER_STOP } = require( "./constants" );
 
 const storagePath = path.join( app.getPath( 'appData' ), STORAGE_FILE )
 
@@ -64,7 +64,7 @@ app.whenReady().then( () => {
 
 
 	// Update Tray UI
-	updateTrayMenu( timers, tray, mainWindow )
+	updateTrayMenu( timerControl.getTimers(), tray, mainWindow )
 
 
 	// Register Window listeners
@@ -76,14 +76,13 @@ app.whenReady().then( () => {
 
 	mainWindow.on( 'close', () => {
 		if ( timerControl.getActiveTimer() ) timerControl.stop()
-		saveTimers( timers, storagePath )
+		saveTimers( timerControl.getTimers(), storagePath )
 	} )
 
 	mainWindow.webContents.on( 'did-finish-load', () => {
-		console.log( 'finished load', new Date() )
 		sendWindowEvent(
 			failedTimersLoad ? TIMERS_LOAD_ERROR : TIMERS_LOAD_SUCCESS,
-			{ timers },
+			{ timers: timerControl.getTimers() },
 			mainWindow
 		)
 	} )
@@ -99,6 +98,28 @@ app.whenReady().then( () => {
 	} )
 
 
+	ipc.on( REQUEST_TIMER_START, ( e, { index } ) => {
+		const activeTimer = timerControl.getActiveTimer()
+		if ( !activeTimer || activeTimer.isPaused ) {
+			timerControl.start( index )
+		}
+	} )
+
+	ipc.on( REQUEST_TIMER_PAUSE, ( e ) => {
+		const activeTimer = timerControl.getActiveTimer()
+		if ( activeTimer ) {
+			timerControl.pause()
+			saveTimers( timerControl.getTimers(), storagePath )
+		}
+	} )
+
+	ipc.on( REQUEST_TIMER_STOP, ( e ) => {
+		const activeTimer = timerControl.getActiveTimer()
+		if ( activeTimer ) {
+			timerControl.stop()
+			saveTimers( timerControl.getTimers(), storagePath )
+		}
+	} )
 
 	// ipc.handle( 'delete', ( event, index ) => {
 	// 	if ( currentTimerIndex === index ) return false
@@ -154,7 +175,7 @@ function updateTrayMenu ( timers, tray, mainWindow ) {
 	timers.forEach( ( timer, index ) => {
 		menuItems.push( {
 			label: 'Start ' + timer.title,
-			enabled: !activeTimer || !activeTimer.isPaused,
+			enabled: !activeTimer || activeTimer.isPaused,
 			click: () => {
 				timerControl.start( index )
 			}

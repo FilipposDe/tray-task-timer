@@ -31,7 +31,7 @@ function stop ( timers, startTime ) {
     const activeTimer = timers.find( t => t.isActive )
     if ( !activeTimer ) throw new Error( 'Unexpected instruction to stop an already stopped timer' )
 
-    const updatedTimer = { ...activeTimer, isPaused: false, isActive: false, time: Date.now() - startTime }
+    const updatedTimer = { ...activeTimer, isPaused: false, isActive: false, time: 0 }
     const newTimers = timers.map( t => t === activeTimer ? updatedTimer : t )
 
     return { timers: newTimers, startTime: null }
@@ -96,6 +96,9 @@ const timerControl = {
         this.checkInit()
         return this.timers.find( t => t.isActive && !t.isPaused )
     },
+    getTimers () {
+        return this.timers
+    }
 
 }
 

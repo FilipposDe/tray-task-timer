@@ -1,6 +1,6 @@
 
 const { ipcRenderer: ipc } = require( 'electron' )
-const { TIMERS_LOAD_SUCCESS } = require( "./constants" )
+const { TIMERS_LOAD_SUCCESS, TIMER_UPDATE, REQUEST_TIMER_START, REQUEST_TIMER_PAUSE, REQUEST_TIMER_STOP, TIMER_STOP } = require( "./constants" )
 
 
 ipc.on( TIMERS_LOAD_SUCCESS, ( e, { timers } ) => {
@@ -13,18 +13,44 @@ const app = new Vue( {
     el: '#app',
     data: {
         timers: [],
+        timePassed: 0,
+        activeTimer: null,
     },
     mounted: function () {
         console.log( 'finished load', new Date() )
 
 
         ipc.on( TIMERS_LOAD_SUCCESS, ( e, { timers } ) => {
-            console.log( 'timers', timers )
             this.timers = timers
+        } )
+
+        ipc.on( TIMER_UPDATE, ( e, { timers, index, timePassed } ) => {
+            this.timers = timers
+            this.activeTimer = timers[ index ]
+            this.timePassed = timePassed
+        } )
+
+        ipc.on( TIMER_STOP, ( e, { timers } ) => {
+            this.timers = timers
+            this.activeTimer = null
+            this.timePassed = 0
         } )
 
     },
     methods: {
+        displayTime: function ( time ) {
+            console.log( 'time', time )
+            return ( new Date( time ) ).toISOString().substr( 11, 8 )
+        },
+        start: function ( index ) {
+            ipc.send( REQUEST_TIMER_START, { index } )
+        },
+        pause: function () {
+            ipc.send( REQUEST_TIMER_PAUSE )
+        },
+        stop: function () {
+            ipc.send( REQUEST_TIMER_STOP )
+        },
     }
 } )
 

@@ -18,12 +18,23 @@
 				<h1>Timer</h1>
 				<input type="text" placeholder="New Timer" id="new-timer">
 				<button id="add-btn">OK</button>
+				<button v-on:click='pause'>Pause</button>
+				<button v-on:click='stop'>Stop</button>
+
 			</header>
 
 			<main>
 
 				<ol>
-					<li v-for='timer in timers'>{{timer.title}}</li>
+					<li v-for='(timer, index) in timers'>
+						<h4>
+							{{timer.title}}
+						</h4>
+						<p>
+							{{timer === activeTimer ? displayTime(timePassed) : displayTime(timer.time)}}
+						</p>
+						<button v-on:click='start(index)'>Start</button>
+					</li>
 				</ol>
 			</main>
 		</div>
