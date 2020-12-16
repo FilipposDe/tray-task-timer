@@ -5,7 +5,8 @@ const { windowManager } = require( "node-window-manager" );
 const { loadTimers, saveTimers } = require( "./storage" );
 const { timerControl } = require( "./timer" );
 const config = require( "./config" );
-const { STORAGE_FILE, TIMERS_LOAD_SUCCESS, TIMERS_LOAD_ERROR, REQUEST_TIMER_START, REQUEST_TIMER_PAUSE, REQUEST_TIMER_STOP } = require( "./constants" );
+const { STORAGE_FILE, TIMERS_LOAD_SUCCESS, TIMERS_LOAD_ERROR, REQUEST_TIMER_START, REQUEST_TIMER_PAUSE, REQUEST_TIMER_STOP, REQUEST_TIMER_RENAME, REQUEST_TIMER_ADD, REQUEST_TIMER_REMOVE, REQUEST_WINDOWS } = require( "./constants" );
+const { windows } = require( "./windows" );
 
 const storagePath = path.join( app.getPath( 'appData' ), STORAGE_FILE )
 
@@ -75,7 +76,8 @@ app.whenReady().then( () => {
 	} )
 
 	mainWindow.on( 'close', () => {
-		if ( timerControl.getActiveTimer() ) timerControl.stop()
+		if ( timerControl.getActiveTimer() ) timerControl.pause()
+		console.log( 'object', timerControl.getTimers() )
 		saveTimers( timerControl.getTimers(), storagePath )
 	} )
 
@@ -121,26 +123,28 @@ app.whenReady().then( () => {
 		}
 	} )
 
-	// ipc.handle( 'delete', ( event, index ) => {
-	// 	if ( currentTimerIndex === index ) return false
-	// 	timers.splice( index, 1 )
-	// 	return true
-	// } )
 
-	// ipc.handle( 'rename', ( event, index, name ) => {
-	// 	timers[ index ].title = name
-	// 	updateTrayMenu()
-	// 	return true
-	// } )
 
-	// ipc.on( 'create', ( event, newName ) => {
-	// 	timers.push( {
-	// 		title: newName,
-	// 		time: 0,
-	// 		isPaused: false,
-	// 	} )
-	// 	mainWindow.webContents.send( 'loadTimers', timers )
-	// } )
+	ipc.handle( REQUEST_TIMER_REMOVE, ( event, { index } ) => {
+		return timerControl.remove( index )
+	} )
+
+	ipc.handle( REQUEST_TIMER_ADD, ( event, { title } ) => {
+		return timerControl.add( title )
+	} )
+
+	ipc.handle( REQUEST_TIMER_RENAME, ( event, { title, index } ) => {
+		return timerControl.rename( title, index )
+	} )
+
+	ipc.handle( REQUEST_WINDOWS, ( event ) => {
+		const active = windows().filter( window => window.isWindow() && window.getTitle() && window.isVisible() )
+		return active.map( window => {
+			const title = window.getTitle()
+			const exePath = path.basename( window.path )
+			return { title, exePath };
+		} )
+	} )
 
 
 

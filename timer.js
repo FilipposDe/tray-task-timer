@@ -26,7 +26,7 @@ function start ( timers, index, emitUpdateEvent ) {
 
 }
 
-function stop ( timers, startTime ) {
+function stop ( timers ) {
 
     const activeTimer = timers.find( t => t.isActive )
     if ( !activeTimer ) throw new Error( 'Unexpected instruction to stop an already stopped timer' )
@@ -75,7 +75,7 @@ const timerControl = {
     stop () {
         this.checkInit()
         clearInterval( this.interval )
-        const { timers, startTime } = stop( this.timers, this.startTime )
+        const { timers, startTime } = stop( this.timers )
         this.timers = timers
         this.startTime = startTime
         this.emitTimerEvent( TIMER_STOP, { timers } )
@@ -97,6 +97,24 @@ const timerControl = {
         return this.timers.find( t => t.isActive && !t.isPaused )
     },
     getTimers () {
+        return this.timers
+    },
+    remove ( index ) {
+        if ( this.getRunningTimer() === this.timers[ index ] ) return this.timers
+        this.timers = this.timers.filter( ( t, i ) => i !== index )
+        return this.timers
+    },
+    add ( title ) {
+        this.timers = [ ...this.timers, {
+            title,
+            isPaused: false,
+            isActive: false,
+            time: 0,
+        } ]
+        return this.timers
+    },
+    rename ( title, index ) {
+        this.timers = this.timers.map( ( t, i ) => i === index ? { ...t, title } : t )
         return this.timers
     }
 

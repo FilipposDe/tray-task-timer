@@ -16,8 +16,8 @@
 		<div id="app">
 			<header>
 				<h1>Timer</h1>
-				<input type="text" placeholder="New Timer" id="new-timer">
-				<button id="add-btn">OK</button>
+				<input type="text" placeholder="New Timer" id="new-timer" v-model="newTitle">
+				<button id="add-btn" v-on:click='add'>OK</button>
 				<button v-on:click='pause'>Pause</button>
 				<button v-on:click='stop'>Stop</button>
 
@@ -27,15 +27,25 @@
 
 				<ol>
 					<li v-for='(timer, index) in timers'>
-						<h4>
+						<h4 v-on:click="fetchWindows">
 							{{timer.title}}
 						</h4>
 						<p>
 							{{timer === activeTimer ? displayTime(timePassed) : displayTime(timer.time)}}
 						</p>
 						<button v-on:click='start(index)'>Start</button>
+						<button v-on:click='remove(index)'>X</button>
 					</li>
 				</ol>
+
+				<h3>Windows</h3>
+				<ul>
+					<li v-for='(window, index) of windows'
+						v-bind:class="selectedWindows.includes(index) ? 'selected' : '' "
+						v-on:click='toggleWindow(index)'>
+						{{window.title}}&nbsp;<b>{{window.exePath}}</b>
+					</li>
+				</ul>
 			</main>
 		</div>
 

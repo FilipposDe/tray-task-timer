@@ -1,6 +1,6 @@
 
 const { ipcRenderer: ipc } = require( 'electron' )
-const { TIMERS_LOAD_SUCCESS, TIMER_UPDATE, REQUEST_TIMER_START, REQUEST_TIMER_PAUSE, REQUEST_TIMER_STOP, TIMER_STOP } = require( "./constants" )
+const { TIMERS_LOAD_SUCCESS, TIMER_UPDATE, REQUEST_TIMER_START, REQUEST_TIMER_PAUSE, REQUEST_TIMER_STOP, TIMER_STOP, REQUEST_TIMER_ADD, REQUEST_TIMER_REMOVE, REQUEST_WINDOWS } = require( "./constants" )
 
 
 ipc.on( TIMERS_LOAD_SUCCESS, ( e, { timers } ) => {
@@ -13,8 +13,11 @@ const app = new Vue( {
     el: '#app',
     data: {
         timers: [],
+        windows: [],
+        selectedWindows: [],
         timePassed: 0,
         activeTimer: null,
+        newTitle: "",
     },
     mounted: function () {
         console.log( 'finished load', new Date() )
@@ -51,97 +54,30 @@ const app = new Vue( {
         stop: function () {
             ipc.send( REQUEST_TIMER_STOP )
         },
+        add: function () {
+            ipc.invoke( REQUEST_TIMER_ADD, { title: this.newTitle } )
+                .then( result => this.timers = result )
+        },
+        remove: function ( index ) {
+            ipc.invoke( REQUEST_TIMER_REMOVE, { index } )
+                .then( result => this.timers = result )
+        },
+        toggleWindow: function ( index ) {
+            if ( this.selectedWindows.includes( index ) ) {
+                this.selectedWindows = this.selectedWindows.filter( i => i !== index )
+            } else {
+                this.selectedWindows.push( index )
+            }
+        },
+        fetchWindows: async function () {
+            this.windows = []
+            this.selectedWindows = []
+            ipc.invoke( REQUEST_WINDOWS )
+                .then( result => this.windows = result )
+
+        }
     }
 } )
 
 
 
-
-// ipc.on( 'loadTimers', ( event, timers ) => {
-
-//     const allContainers = document.querySelectorAll( '.container' )
-//     allContainers.forEach( container => {
-//         container.parentElement.removeChild( container )
-//     } )
-
-//     timers.forEach( ( timer, index ) => {
-//         setupTimerElements( timer, index )
-//     } );
-
-
-//     const addInput = document.querySelector( '#new-timer' )
-//     const addBtn = document.querySelector( '#add-btn' )
-//     addBtn.addEventListener( 'click', ( e ) => {
-//         e.preventDefault()
-//         ipc.send( 'create', addInput.value )
-//     } )
-
-
-// } )
-
-// function setupTimerElements ( timer, index ) {
-
-//     const container = document.createElement( 'div' )
-//     document.body.appendChild( container )
-//     container.id = 'timer' + index
-//     container.classList.add( 'container' )
-
-//     const heading = document.createElement( 'h2' )
-//     container.appendChild( heading )
-//     heading.innerText = timer.title
-//     heading.addEventListener( 'dblclick', ( e ) => {
-//         e.preventDefault()
-//         heading.style.display = 'none'
-//         input.style.display = 'inline-block'
-//         saveBtn.style.display = 'inline-block'
-//     } )
-
-//     const input = document.createElement( 'input' )
-//     container.appendChild( input )
-//     input.value = timer.title
-//     input.style.display = 'none'
-
-//     const saveBtn = document.createElement( 'button' )
-//     container.appendChild( saveBtn )
-//     saveBtn.innerText = 'OK'
-//     saveBtn.addEventListener( 'click', e => {
-//         e.preventDefault()
-//         ipc.invoke( 'rename', index, input.value ).then( renamed => {
-//             if ( renamed ) {
-//                 heading.innerText = input.value
-//             }
-//         } )
-//         heading.style.display = 'block'
-//         input.style.display = 'none'
-//         saveBtn.style.display = 'none'
-//     } )
-//     saveBtn.style.display = 'none'
-
-
-//     const deleteBtn = document.createElement( 'button' )
-//     container.appendChild( deleteBtn )
-//     deleteBtn.innerText = 'x'
-//     deleteBtn.addEventListener( 'click', ( e ) => {
-//         e.preventDefault()
-//         ipc.invoke( 'delete', index ).then( deleted => {
-//             if ( deleted ) {
-//                 container.parentElement.removeChild( container )
-//             }
-//         } )
-//     } )
-
-
-
-//     const text = document.createElement( 'p' )
-//     container.appendChild( text )
-//     text.innerText = ( new Date( timer.time ) ).toISOString().substr( 11, 8 )
-//     text.style.padding = '10px'
-
-//     ipc.on( 'timerUpdate' + index, ( event, time ) => {
-//         text.innerText = ( new Date( time ) ).toISOString().substr( 11, 8 )
-//         document.querySelectorAll( 'p' ).forEach( p => {
-//             p.style.backgroundColor = 'transparent'
-//         } )
-//         text.style.backgroundColor = '#aadee6'
-//     } )
-// }
